@@ -21,6 +21,7 @@ void Echo(const char* string);
 void WriteBlock(void);
 void ReadBlock(uint16_t startAddr, uint16_t length, bool maskROM);
 void SetAddressMSB(uint8_t addr, bool maskROM);
+uint32_t CRC32(uint8_t *buf, size_t size);
 
 
 void EVENT_USB_Device_Connect(void);
@@ -336,6 +337,14 @@ void ReadBlock(uint16_t startAddr, uint16_t length, bool maskROM)
 		
 	// Send data to host
 	CDC_Device_SendData(&EETool_CDC_Interface, gCommBuffer, length);
+	
+	// Compute a 32 bit CRC and send it
+	uint32_t crc = CRC32(gCommBuffer,length);
+	for (int i=0; i<4; i++)
+	{
+		CDC_Device_SendByte(&EETool_CDC_Interface, (uint8_t)(crc & 0xff));
+		crc>>=8;
+	}
 	_delay_ms(10);
 	
 	PULSEC(LEDPIN);
@@ -349,6 +358,28 @@ void WriteBlock()
 
 }
 
+
+uint32_t CRC32(uint8_t *buf, size_t size)
+{
+	// This could be made faster with a table lookup, but it's plenty fast enough for our purposes
+	int i, j;
+	uint32_t byte, crc, mask;
+	
+	i = 0;
+	crc = 0xFFFFFFFF;
+	while (size--)
+	{
+		byte = buf[i];
+		crc = crc ^ byte;
+		for (j = 7; j >= 0; j--)
+		{
+			mask = -(crc & 1);
+			crc = (crc >> 1) ^ (0xEDB88320 & mask);
+		}
+		i = i + 1;
+	}
+	return ~crc;
+}
 
 // USB Event Handlers
 void EVENT_USB_Device_Connect(void)
@@ -372,5 +403,3 @@ void EVENT_USB_Device_ControlRequest(void)
 {
 	CDC_Device_ProcessControlRequest(&EETool_CDC_Interface);
 }
-
-

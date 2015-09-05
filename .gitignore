@@ -76,3 +76,5 @@ Code/LUFA/Drivers/USB/Core/AVR8/Pipe_AVR8.o
 Code/LUFA/Drivers/USB/Core/AVR8/PipeStream_AVR8.d
 Code/LUFA/Drivers/USB/Core/AVR8/PipeStream_AVR8.o
 Code/test.rom
+EETool_pcb.jpg
+EETool_sch.jpg

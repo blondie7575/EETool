@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import sys, getopt, serial, binascii
+import sys, getopt, serial, binascii, struct
 
 
 class Mode:
@@ -20,6 +20,7 @@ class Command:
 
 PONG = 'PONG'
 BLOCKSIZE = 512
+CRCSIZE = 4
 
 romfile = ''
 serialport = ''
@@ -149,32 +150,41 @@ def dumpROM():
 
 			while 1:
 				numBytes = connection.inWaiting()
-				if numBytes>=BLOCKSIZE:
+				if numBytes>=BLOCKSIZE + CRCSIZE:
 					break
 
-			if (numBytes!=BLOCKSIZE):
+			if (numBytes!=BLOCKSIZE + CRCSIZE):
 				print 'ERROR: Block',blockNum,'failed to download. Aborting.'
 				sys.exit(2)
 
 			response = connection.read(numBytes)
+			crc = struct.unpack('<I',response[BLOCKSIZE:BLOCKSIZE+CRCSIZE])[0]
+			block = response[0:BLOCKSIZE]
+			calcCRC = binascii.crc32(block) & 0xFFFFFFFF
+			if crc != calcCRC:
+				print numBytes,'CRC failed on block',blockNum,'Read CRC =',hexU32(crc),'   Calcuated CRC =',hexU32(calcCRC)
+				print 'Aborting.'
+				sys.exit(2)
 
 			# Write the block to our file
-			destFile.write(bytes(response))
+			destFile.write(bytes(block))
 
 			sys.stdout.write('#')
 			sys.stdout.flush()
-			totalSize += numBytes
+			totalSize += numBytes - CRCSIZE
 				
 		destFile.close()
 		print '\nDone! ROM is',totalSize,'bytes.'
 		sys.exit(0)
 			
 	except (ValueError,OSError,serial.SerialException):
-
+		print 'UNKNOWN ERROR'
 		connection.close()
 		sys.exit(0)
 
 
+def hexU32(n):
+	return "0x%x"%(n&0xffffffff)
 
 def usage():
 	print '''
