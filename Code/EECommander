@@ -5,9 +5,10 @@ import sys, getopt, serial, binascii, struct
 
 class Mode:
 	NONE = 0
-	DUMP = 1
-	BURN = 2
-	CHECK = 3
+	READ = 1
+	DUMP = 2
+	BURN = 3
+	CHECK = 4
 
 
 class Command:
@@ -16,7 +17,8 @@ class Command:
 	PING = 1
 	STARTRW = 2
 	READBLOCK = 3
-	WRITEBLOCK = 4
+	READBLOCK_MASK = 4
+	WRITEBLOCK = 5
 
 PONG = 'PONG'
 BLOCKSIZE = 512
@@ -30,13 +32,15 @@ def main(argv):
 
 	global romfile
 	global serialport
-	mode = Mode.NONE
+	global mode
 
+	mode = Mode.NONE
+	
 	if len(argv)==0:
 		usage()
 
 	try:
-		opts, args = getopt.getopt(argv,'dbcs:r:',['dump','burn','check','serial=','rom='])
+		opts, args = getopt.getopt(argv,'dRbcs:r:',['dump','burn','check','serial=','rom='])
 	except getopt.GetoptError:
 		usage()
 
@@ -45,6 +49,8 @@ def main(argv):
 			mode = Mode.CHECK
 		elif opt == '-d':
 			mode = Mode.DUMP
+		elif opt == '-R':
+			mode = Mode.READ
 		elif opt == '-b':
 			mode = Mode.BURN
 		elif opt == '-s':
@@ -58,9 +64,11 @@ def main(argv):
 		Mode.NONE:	usage,
 		Mode.BURN:	burnROM,
 		Mode.DUMP:	dumpROM,
+		Mode.READ:  dumpROM,
 		Mode.CHECK:	checkConnection
 	}
 	commands[mode]()
+
 
 def checkConnection():
 	if serialport=='':
@@ -141,10 +149,11 @@ def dumpROM():
 		print 'Requesting data from EETool...'
 
 		totalSize = 0
-
+		cmd = Command.READBLOCK_MASK if mode==Mode.DUMP else Command.READBLOCK
+		
 		# Request all the blocks
 		for blockNum in range(0,64):
-			wrote = connection.write(bytearray([Command.PREFIX,Command.READBLOCK]))
+			wrote = connection.write(bytearray([Command.PREFIX,cmd]))
 			if wrote != 2:
 				raise ValueError()
 
@@ -189,7 +198,8 @@ def hexU32(n):
 def usage():
 	print '''
 Usage: EECommander -[d|b|c] -s <serial port> -r <rom file>
- -d: Dump the contents of the attached ROM or EEPROM to a file'
+ -d: Dump the contents of the attached MASK ROM to a file
+ -R: Read the contents of the attached EEPROM to a file
  -b: Burn the rom file to the attached EEPROM
  -c: Check your connection to EETool (no other action taken)
 

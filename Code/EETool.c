@@ -65,6 +65,7 @@ typedef enum
 	CMD_PING,
 	CMD_STARTRW,
 	CMD_READBLOCK,
+	CMD_READBLOCK_MASK,
 	CMD_WRITEBLOCK
 } Command;
 
@@ -129,6 +130,13 @@ int main(void)
 					case CMD_READBLOCK:
 					{
 						ReadBlock(gCurrentAddress,BUFF_SIZE,false);
+						gCurrentAddress += BUFF_SIZE;
+						break;
+					}
+					
+					case CMD_READBLOCK_MASK:
+					{
+						ReadBlock(gCurrentAddress,BUFF_SIZE,true);
 						gCurrentAddress += BUFF_SIZE;
 						break;
 					}
