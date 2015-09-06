@@ -78,3 +78,6 @@ Code/LUFA/Drivers/USB/Core/AVR8/PipeStream_AVR8.o
 Code/test.rom
 EETool_pcb.jpg
 EETool_sch.jpg
+Code/appleiicplus.rom
+Code/dump.txt
+Code/veronica.rom
