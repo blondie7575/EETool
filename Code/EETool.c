@@ -413,8 +413,6 @@ void WriteBlock(uint16_t startAddr, uint16_t length)
 		FatalError();
 	}
 	
-	// Read all data from host
-	
 	// Write data to the EEPROM
 	for (uint16_t i=startAddr; i<startAddr+length; i++)
 	{
@@ -438,9 +436,10 @@ void WriteBlock(uint16_t startAddr, uint16_t length)
 
 		_delay_ms(8);  // For now, just doing "byte write" mode. Easier than page write (see below), but glacially slow
 		
-		// After each EEPROM page, wait for the write to complete
+		// After each EEPROM page, wait for the write to complete. Making page write mode work requires hitting small
+		// timing windows which is difficult to do from general-purpose C code like this.
 //		uint16_t nextPageNum = i & EEPROM_PAGE_MASK;
-		
+//		
 //		pageByte++;
 //		if (pageByte >= EEPROM_PAGE_SIZE || pageNum != nextPageNum)
 //		{
