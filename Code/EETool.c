@@ -13,12 +13,14 @@
 #define LEDPIN 6
 #define PREFIXBYTE 0x42
 #define ROMSIZE 32768
+#define EEPROM_PAGE_SIZE 64
+#define EEPROM_PAGE_MASK 0xffc0
 
 void SetupHardware(void);
 void FatalError(void);
 void ClearCommand(void);
 void Echo(const char* string);
-void WriteBlock(void);
+void WriteBlock(uint16_t startAddr, uint16_t length);
 void ReadBlock(uint16_t startAddr, uint16_t length, bool maskROM);
 void SetAddressMSB(uint8_t addr, bool maskROM);
 uint32_t CRC32(uint8_t *buf, size_t size);
@@ -137,6 +139,13 @@ int main(void)
 					case CMD_READBLOCK_MASK:
 					{
 						ReadBlock(gCurrentAddress,BUFF_SIZE,true);
+						gCurrentAddress += BUFF_SIZE;
+						break;
+					}
+					
+					case CMD_WRITEBLOCK:
+					{
+						WriteBlock(gCurrentAddress,BUFF_SIZE);
 						gCurrentAddress += BUFF_SIZE;
 						break;
 					}
@@ -317,6 +326,7 @@ void ReadBlock(uint16_t startAddr, uint16_t length, bool maskROM)
 	if (!maskROM)
 	{
 		SETE_HI(6);		// Write Enable to disable
+		FatalError();
 	}
 	
 	for (uint16_t i=startAddr; i<startAddr+length; i++)
@@ -359,11 +369,92 @@ void ReadBlock(uint16_t startAddr, uint16_t length, bool maskROM)
 }
 
 
-void WriteBlock()
+void WriteBlock(uint16_t startAddr, uint16_t length)
 {
-	// Data bus for output
+	// Configure data bus for output
 	DDRD = QDDRD(0) | QDDRD(1) | QDDRD(2) | QDDRD(3) | QDDRD(4) | QDDRD(5) | QDDRD(6) | QDDRD(7);
 
+	if (startAddr+length > ROMSIZE)
+	{
+		FatalError();
+	}
+		
+	SETE_HI(2);			// Force Output Enable high for writing
+	SETE_HI(6);			// Initialize Write Enable to disabled
+
+	uint16_t pageNum = startAddr & EEPROM_PAGE_MASK;
+	uint16_t pageByte = 0;
+	
+	// Wait for entire block from host
+	uint16_t byteCount = 0;
+	while (byteCount<BUFF_SIZE)
+	{
+		uint16_t numBytes = CDC_Device_BytesReceived(&EETool_CDC_Interface);
+		
+		uint16_t i;
+		for (i=0; i<numBytes; i++)
+		{
+			int16_t value = CDC_Device_ReceiveByte(&EETool_CDC_Interface);
+			if (value>=0)
+			{
+				gCommBuffer[byteCount] = (uint8_t)value;
+			}
+			byteCount++;
+			if (byteCount>=BUFF_SIZE)
+			{
+				break;
+			}
+		}
+
+	}
+
+	if (byteCount>BUFF_SIZE)
+	{
+		FatalError();
+	}
+	
+	// Read all data from host
+	
+	// Write data to the EEPROM
+	for (uint16_t i=startAddr; i<startAddr+length; i++)
+	{
+		// Drive address lines
+		PORTB = (uint8_t)(i & 0xff);	// LSB
+		SetAddressMSB((uint8_t)(i>>8),false);
+		
+		// Prepare read buffer
+		uint16_t index = i-startAddr;
+		if (index>=BUFF_SIZE)
+		{
+			FatalError();
+		}
+		
+		// Drive data lines
+		PORTD = gCommBuffer[index];
+		
+		// Show falling edge to Write Enable
+		SETE_LO(6);
+		SETE_HI(6);
+
+		_delay_ms(8);  // For now, just doing "byte write" mode. Easier than page write (see below), but glacially slow
+		
+		// After each EEPROM page, wait for the write to complete
+//		uint16_t nextPageNum = i & EEPROM_PAGE_MASK;
+		
+//		pageByte++;
+//		if (pageByte >= EEPROM_PAGE_SIZE || pageNum != nextPageNum)
+//		{
+//			pageByte = 0;
+//			pageNum = nextPageNum;
+//			_delay_ms(8);
+//		}
+	}
+	
+	// Confirm with host that we're done
+	uint8_t ackByte = PREFIXBYTE;
+	CDC_Device_SendData(&EETool_CDC_Interface, &ackByte, 1);
+
+	PULSEC(LEDPIN);
 }
 
 

@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import sys, getopt, serial, binascii, struct
+import sys, getopt, serial, binascii, struct, time
 
 
 class Mode:
@@ -116,7 +116,76 @@ def checkConnection():
 
 
 def burnROM():
-	usage()
+	if romfile=='' or serialport=='':
+		usage()
+	
+	print 'Connecting to ' + serialport + '...'
+	try:
+		# Create the serial connection
+		connection = serial.Serial(serialport,19200,timeout=1)
+
+	except (OSError,serial.SerialException):
+		print 'Unable to find that serial port.'
+		sys.exit(2)
+
+	try:
+		destFile = open (romfile, "r")
+
+	except OSError:
+		print 'Unable to read from ROM file',romfile
+		sys.exit(2)
+
+	try:
+		# Prepare to write
+		wrote = connection.write(bytearray([Command.PREFIX,Command.STARTRW]))
+		if wrote != 2:
+			raise ValueError()
+
+		print 'Sending data to EETool...'
+
+		totalSize = 0
+		
+		# Transmit all the blocks
+		for blockNum in range(0,64):
+			wrote = connection.write(bytearray([Command.PREFIX,Command.WRITEBLOCK]))
+			if wrote != 2:
+				raise ValueError()
+
+			# Read block from ROM file
+			block = destFile.read(BLOCKSIZE)
+			
+			# Send block to EETool
+			numBytes = connection.write(block)
+			if numBytes != BLOCKSIZE:
+				raise ValueError()
+			
+			# Wait for confirmation
+			while 1:
+				wrote = connection.inWaiting()
+				if wrote>=1:
+					break
+
+			confirmation = connection.read(numBytes)
+			chk = bytearray([confirmation]);
+			
+			if not ((wrote==1) and (chk[0]==Command.PREFIX)):
+				print 'ERROR: Confirmation failed while uploading block',blockNum,'   Aborting.'
+				sys.exit(2)
+
+			sys.stdout.write('#')
+			sys.stdout.flush()
+			totalSize += numBytes
+			time.sleep(0.1)
+
+		destFile.close()
+		print '\nDone! Wrote',totalSize,'bytes to EEPROM.'
+		sys.exit(0)
+			
+	except (ValueError,OSError,serial.SerialException):
+		print 'UNKNOWN ERROR'
+		connection.close()
+		sys.exit(0)
+
 
 
 def dumpROM():
