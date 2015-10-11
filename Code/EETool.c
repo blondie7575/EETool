@@ -334,7 +334,9 @@ void ReadBlock(uint16_t startAddr, uint16_t length, bool maskROM)
 		// Drive address lines
 		PORTB = (uint8_t)(i & 0xff);	// LSB
 		SetAddressMSB((uint8_t)(i>>8),maskROM);
-		
+
+		_delay_us(1);
+
 		// Show falling edge to Output Enable
 		SETE_LO(2);
 		
@@ -342,7 +344,9 @@ void ReadBlock(uint16_t startAddr, uint16_t length, bool maskROM)
 		
 		// Read the data byte
 		uint8_t data = PIND;
-		
+
+		_delay_us(1);
+
 		SETE_HI(2);
 		uint16_t index = i-startAddr;
 		if (index>=BUFF_SIZE)
